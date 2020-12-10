@@ -1,0 +1,51 @@
+# Identify tools that will allow you to do the following:
+
+## Scan infrastructure as code templates
+
+There were a few tools I found but a cool looking one was Bridgecrew
+
+### Example vulnerability
+
+An example I found is this check which will analize your CloudFormation and product vulnerability reports like the following,
+Which is checking to make sure that your buckets are restricted is public amongst other things.
+
+Check: CKV_AWS_56: "Ensure S3 bucket has 'restrict_public_bucket' enabled"
+FAILED for resource: AWS::S3::Bucket.LogsBucket
+File: /cfngoat.yaml:644-662
+Guide: https://docs.bridgecrew.io/docs/bc_aws_s3_22
+
+644 |     Type: AWS::S3::Bucket
+645 |     DeletionPolicy: Delete
+646 |     Properties:
+647 |       BucketName: !Sub "${AWS::AccountId}-${CompanyName}-${Environment}-logs"
+648 |       AccessControl: LogDeliveryWrite
+649 |       VersioningConfiguration:
+650 |         Status: Enabled
+651 |       BucketEncryption: 
+652 |         ServerSideEncryptionConfiguration:
+653 |           - ServerSideEncryptionByDefault:
+654 |               KMSMasterKeyID: !Ref LogsKey
+655 |               SSEAlgorithm: aws:kms
+656 |       Tags:
+657 |         - Key: Name
+658 |           Value: !Sub "${AWS::AccountId}-${CompanyName}-${Environment}-logs"
+
+## Scan AMI’s or containers for OS vulnerabilities
+
+AWS Inspector will do this for you. 
+
+### Example vulnerability
+
+here is an example vulnerability it found in the project:
+ Instance i-00e8aa59ddbc7a6c3 is configured to support password authentication over SSH. Password authentication is susceptible to brute-force attacks and should be disabled in favor of key-based authentication where possible. 
+
+##Scan an AWS environment for cloud configuration vulnerabilities
+
+AWS Inspector and AWS Config will also do this for you. 
+
+### Example vulnerability
+
+Here is an example of it detecting that the load balancers did not redirect from HTTP to HTTPS:
+
+securityhub-alb-http-to-https-redirection-check-7076ac7d
+- - Checks whether HTTP to HTTPS redirection is configured on all HTTP listeners of Application Load Balancers. The rule is NON_COMPLIANT if one or more HTTP listeners of Application Load Balancers do not have HTTP to HTTPS redirection configured. 

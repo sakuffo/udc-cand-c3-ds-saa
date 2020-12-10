@@ -1,0 +1,69 @@
+Based on the architecture diagram, and the steps you have taken so far to upload data and access the application web service, identify at least two obvious poor practices as it relates to security.  Include justification.
+
+# Poor practice 1
+
+The IAM Roles and Permissions violate the least privilege principle and open up the architecture to some glaring vulnerabilities. I am going to focus on the permissions of that role and what vulnerabilities it introduces.
+The instance profile role has a permission policy that allows all S3 actions on any resource. For this particular application, that means if the API keys were stolen, as is simulated to both instances having the same instance profile role, an attack could sniff all information about all buckets in all regions. 
+A simple script that "aws s3 ls s3://"  and rotates through all the regions would give the attacker a wealth of information with this permission scope. 
+Of course, one can tell what buckets are in each region and could steal the secret recipe, which is the point of this exercise. 
+But because s3 is typically also the storage repository for a 
+lot of other services, it can also tell the attacker what services you consume and how else they could infiltrate the environment. This Security Misconfiguration
+that is causing Broken access controls could very easily be elevated to sensitive data exposure (you have to protect mom's recipe!) 
+
+To demonstrate that, in our environment, listing all s3 buckets would tell the attack that the environment is managed by Cloudformation because cf creates a bucket by default. 
+They could also go into the config-bucket which has the configuration history of everything in the VPC, from IAM role configs, to security group configs, 
+to the even the config for an entire Cloudformation stack (which can be downloaded in my environment with 
+aws s3 cp s3://cand-c3-vpc-flow-logs-<account-number>/AWSLogs/<account-number>/vpcflowlogs/us-east-1/2020/12/09/<account-number>_Config_us-east-1_ConfigHistory_AWS::CloudFormation::Stack_20201209T030313Z_20201209T062422Z_1.json.gz ./ --region us-east-1 )
+
+These are effectively the keys to the kingdom for the malicious actor. We don't do this in this project but if we DID commit out Cloudformation template to s3, either 
+through code commit or that CloudFormation bucket we mentioned or anything like that, 
+the attacker could download the necessary file, make edits, re-upload the file and then you could potentially now have a role that rather than 
+just being permissive to any S3 action, you could now have an allow all actions on all resource role be applied built into the code.
+
+Extremely critical issue and would probably fall under the Security Misconfiguration, Broken Access Control, Sensitive Data Exposure pillars of the OWASP Top 10
+just to name a few.
+
+# Poor practice 2
+
+While we don't explore the subject in this project, the application not using SSL/TLS is a low hanging fruit that has fairly high risk.
+The risks are not only technical and security-focused in scope but also business-critical. We know the app is not using SSL because web
+Traffic is being served through port 80 to the open internet rather than port 443, the default security port. 
+SSL stands for Secure Sockets Layer that is a fundamental technology that tries to keep internet traffic secure
+by encrypting communication between entities. TLS is the newer, more secure version of SSL 
+, but since SSL is still the popular name reference, I use them interchangeably.
+
+In the case of this project, the attack is already "in the walls of the vpc". However, without the connection being secured through SSL/TLS.
+This means the traffic between end-users and the application is not secure. This means legitimate user traffic could be sniffed to see what is happening by performing a man in the middle attack. While SSL does not guarantee against this kind of attack, it does mean that if SSL were present and the attacker tried to redirect traffic of the users
+to themselves, the user would see an insecure connection warning. Since there is no SSL/TLS setup, however, that would be indistinguishable from
+the true site as most browsers today will throw up that warning if SSL/TLS is not present.
+
+Which leads to business risk. Currently, the only thing that the app is serving is a free recipe. However, if they ever wanted to monetize the app,
+maybe continue to offer a free recipe plan but also have a subscription for paid secret recipes; you have two problems.
+
+One, the insecure warning would scare off a lot of users. In some cases (depending on the user's network settings and AV/Firewall/Other tools), the website
+might just be blocked. Reduced traffic means reduced business.
+Two, whoever DID choose continue through would probably be very hesitant to put their credit card in a site that was just called not secure by their browser.
+Further, if someone did enter in their CC information, we are now venturing into PCI/DSS compliance territory. CC are very sensitive data, and if they want
+to the collection this information, they would risk being on the front page for a data breach.
+
+Bonus
+I will identify some additional (but not exhaustive) list of violations with much shorter justifications.
+
+3. Security Group ingress configuration allows all protocols/all ports from any IP address
+
+While there is an explicitly setting for port 80, port 22, and port 5000 (still from any IP address), because the cloudformation template has a rule for '-1', that translates into an All ports rule. And because it is configured with '0.0.0.0/0' that means it accepts all IPs
+
+4. S3 buckets do not have encryption. Either default Server Side Encryption or any encryption built into the python app (I inspected the app.py)
+
+5. Potentially sensitive Environment variables are passed to the app server. Here it's bucket names
+but even the existence of buckets can be a security flaw as explored.
+
+6. There are no monitoring and logging tools turn on by default. This makes detecting attacks in the first place difficult.
+
+7. Code does not go through a CI/CD pipeline. This makes it difficult to verify what has drifted and when.
+
+8. The server OS is not hardened. As we see later in this project, it allows for things like brute-forcing ssh
+
+9. The application does not implement and security controls. While this could almost be understandable for a small spunky startup
+not at least using 3rd party tools or open-source software to try and plug some of those holes is quite a miss.
+

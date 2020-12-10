@@ -1,0 +1,19 @@
+# Describe GuardDuty findings that were detected related to the brute force attack
+
+- Web App Server Findings
+    - It identified all the relevant identifying characteristics of the web app server like it's region, resource ID, it's creation time etc.
+    - It identified that the Web App Server was a target of an event. What type of resource it was, what the instance ID was, what the port was, what the port name was, the instance type (t3.mciro), it's AZ, image ID, launch time, instance profile and it's tags. All of it's related network information like the's ip addresses, dns names. Effectively a picture of the resource
+    - Then it characterized the Action that would found. In this cause it was a action type of NETWORK_CONNECTION, INBOUND to the instance over TCP and that the connection was not blocked
+    - It also identified the Actor to some extent. Showing it's IP address, Port and organization
+- Attack Instance Finding
+    - Over on the attack instance it found that "i-067f6c09a4a815ea4 is performing SSH brute force attacks against 10.192.10.160. Brute force attacks are used to gain unauthorized access to your instance by guessing the SSH password." and characterized the severity to be high 
+    - It also similarly divided the infomation found like it did the web app, into the Resource Affected, the Action, and the Target (instead of Actor as this was the actor)
+    - The Resources affected had more information that the Actor field on the target. It fully identified the instance indluing it's ami id and instance profile
+
+With this information we know where the attack came from, what ports ti was using, which VPCs, what protocols the attack used and Guard duty is even app to characterize that it was a sort of burteforce sttack
+
+# Research the AWS Guard Duty documentation page and explain how GuardDuty may have detected this attack - i.e. what was its source of information.
+
+As the documentation states, Guard Duty is able to recieve data from various sources: VPC Flow Logs, AWS CloudTrail management event logs, Cloudtrail S3 data event logs, and DNS logs. In our case, because we have configured VPC flow logs in the Cloudformation template, that is what is being used as the data source for this attack.
+
+It will then use threat intelligence feeds like malicious IP & Domain lists, machine learning etc to detect various malicious actions. In this case, password stuffing over port 22

@@ -1,0 +1,30 @@
+
+# Identify 2-3 changes that can be made to our environment to prevent an ssh brute force attack from the internet.
+
+- - We can change the WebAppSG to have a more restricted inbound ruleset. Currently it is allow all traffic on all ports.
+    We should reduce that to recieving traffic only from the AppLoadbalancer security group on Port 80 and Port 5000.
+    That way the only way to access the app through the internet is over HTTP and the port 5000 specific for its application.
+    If SSH access is required, limit which ips/ip ranges can reach the port (in my project I will reduce it to my IP and black that out)
+    Not related to SSH but we should strongly consider enabling HTTPS only traffic and have the Loadbalancer redirect port 80
+    traffic to port 443. This will help preventing man in the middle attacks, credential sniffing/access sniffing etc.
+    
+
+- - Harden the AMI image being used in the cloud formation template by creating an instance, configuring it with the correct OS settings
+    then using the new AMI id in the template. if the current instance cannot be re-deployed, we should harden that in place.
+    Things to Harden
+    - - Some best practice sshd_config changes
+        - - Limit Max authentication attempts. This can be done by changing the 'MaxAuthTries' setting to something low (below 10)
+            this will lock out any attempt to bruteforce through SSH
+        - - Set 'PubkeyAuthentication' to yes. This will require a public key to use SSH. To be clear, a public key is not ideal as that
+            can be compromised too, however it is better than passwords. This goes hand in hand with disabling password log-ins
+
+# Neither instance should have had access to the secret recipes bucket, in the even that instance API credentials were compromised how could we have prevented access to sensitive data.
+
+- - The policy attached to the instance role profile that is being used by the Web App Instance should be less permissive. 
+    Right now it allows for all S3 actions on all resources. This violates the least privilege principal and should be addressed.
+    We can do this by limiting permitted actions to S3:GetObject as all the application needs to do right now is get the text file.
+    We can also limit it to only the free_recipes bucket. While we could limit it to just the free_recipe.txt file, this could be
+    a pretty large limitation to the developers who may put new recipes or a free_recipes_2.txt in the bucket and have that be locked out.
+
+    Further, there should be a permission boundary on the Policy to ensure that it cannot esclate it's permissions above what is
+    allowed by S3ReadOnly.

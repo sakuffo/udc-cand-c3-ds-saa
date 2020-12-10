@@ -1,0 +1,52 @@
+Research and analyze which of the vulnerabilities appear to be related to the code that was deployed for the environment in this project.
+
+While some of these rule violations are due to my account and some of the default VPC settings, some of them are because of how the cloudformation template is coded.
+Due to the longer list I will select a few violations from the cloudformation templates. If all of them are required please let me know.
+
+- # Longer Form Violation Analysis
+    - **Rule Violated:** CIS foundation standard "Ensure no security groups allow ingress from 0.0.0.0/0 to port 22/3389" (these are two seperate rules)
+        - **Resource in scope: **Web App Security Group and Attack Instance Security Group
+        - **Cause:** This is caused explicitly in the App template has security groups that allow inbound traffic from all protocols/all ports from any ip. 
+            For example, the WebAppSG has this line:
+            ```yaml
+                SecurityGroupIngress:
+                - IpProtocol: -1
+                    CidrIp: 0.0.0.0/0```
+        This is what causes all protocols/all ports from all ips allow as -1 is interpreted as all protocls and 0.0.0.0/0 is interpreted as all ipv4 addresses
+
+        - **Remediation:** Remove any rule that points to port 22 and also allows all ips (0.0.0.0/0). Further, remove any ingress rule that allows IpProtocol -1 (all protocols). That is simply too permissive.
+
+    - **Rule Violated:** securityhub-ec2-instance-managed-by-ssm-99b93d9c
+        - **Resource In Scope:** WebApp Server and AttackInstance
+        - **Cause:** Instances are not managed by AWS System Manager (SSM) which will increase the management overhead and cause drift and changes to be hard to detect.
+        - **Resolution:** Manage the instances with SSM
+
+    - **Rule Violated:** Instance i-05b6e3cce096169f0 is configured to allow users to log in with root credentials over SSH, without having to use a command authenticated by a public key. This increases the likelihood of a successful brute-force attack.
+        - **Resource In Scope**: Both Web App and Attack Instance. Foocusing on Web App
+        - **Cause**: We use an AMI image that allows password authentication over SSH by default and do not harden it in the instance bring up
+        - **Resolution**: Either use SSM to configure the system or if not application, ensure the AMI image changes /etc/ssh/sshd_config to set PasswordAuthentication to No and PubkeyAuthentication to yes. Alternatively, simply build an AMI with these settings backed in.
+
+    - **Rule Violated:** Instance i-05b6e3cce096169f0 is configured to allow users to log in with root credentials over SSH, without having to use a command authenticated by a public key. This increases the likelihood of a successful brute-force attack.
+        - **Resource In Scope**: Both Web App and Attack Instance. Foocusing on Web App
+        - **Cause**: We use an AMI image that allows password authentication over SSH by default and do not harden it in the instance bring up in the Instance defition. This could be done by passing different 'user_data' or coding SSM into the template.
+        - **Resolution**: Either use SSM to configure the system or if not application, ensure the AMI image changes /etc/ssh/sshd_config to set PasswordAuthentication to No and PubkeyAuthentication to yes in the template code with CLoud init or osmething similar
+        
+    - **Rule Violated:** S3 buckets should have server-side encryption enabled
+        - **Resource In Scope**: All of the CloudFormation deployed buckets
+        - **Cause**: We do not define any other parameters in the buckets other than their name. This causes CloudFormation to use a number of insecure defaults as there are no good automatic options that don't have an impact on the account (cost or control or otherwise). 
+                    One of those config option is no default server side encyption.
+                    This is a good example of how AWS requires you own the security IN the cloud while Amazon deals withthe security of the cloud.
+        - **Resolution**: Turn on server side encryption. This can be done in cloud formation by using the BucketEncyption property.
+        ```yaml
+        BucketEncryption:
+            ServerSideEncryptionConfiguration:
+                - ServerSideEncryptionByDefault:
+                    SSEAlgorithm: 'aws:kms'
+                    KMSMasterKeyID: KMS-KEY-ARN```
+
+- # Quick Additional List
+- - The Lack of ebs volume encryption causes a violation. This can be resolved by configuring volume encryption property "Encrypted" in the template.
+- - Web App Server is open on port 68 (and it's SG is open on all ports) and it's DHCP process is listening on the open internet. In some cases, this could 
+allow actors to change the system IP address from the internet. Fixing the SG permissiveness will solve this. This is explictly caused in the cloud formation template.
+- - There is no password completxity specified. This is probably because the AMI used is not hardened and the instance itself is not hardened in bring up.
+Either create a new AMI with hardened settings or esnure user data/SSM does it
